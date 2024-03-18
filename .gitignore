@@ -24,9 +24,6 @@ node_modules
 # Leftover core/plugin upgrade files
 /upgrade/
 
-# mu-plugins; these are managed at the platform-level
-/mu-plugins/
-
 # drop-ins; these are managed at the platform-level
 /object-cache.php
 /db.php

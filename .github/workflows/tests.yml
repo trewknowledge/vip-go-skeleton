@@ -49,13 +49,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: ${{ matrix.theme }}/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: ${{ matrix.theme }}/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ${{ matrix.theme }}/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:js
 
@@ -73,18 +73,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: ${{ matrix.theme }}/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: ${{ matrix.theme }}/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ${{ matrix.theme }}/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: composer install --no-interaction --prefer-dist
-      - run: pnpm env:start
+      - name: Install root tooling (wp-env)
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      - name: Start wp-env
+        working-directory: .
+        run: pnpm env:start
       - run: pnpm test:php
       - if: always()
+        working-directory: .
         run: pnpm env:stop
 
   e2e:
@@ -101,16 +107,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: ${{ matrix.theme }}/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: ${{ matrix.theme }}/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ${{ matrix.theme }}/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm env:start
+      - name: Install root tooling (wp-env)
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      - name: Start wp-env
+        working-directory: .
+        run: pnpm env:start
       - run: pnpm test:e2e
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -118,6 +129,7 @@ jobs:
           name: playwright-report-e2e-${{ strategy.job-index }}
           path: ${{ matrix.theme }}/playwright-report/
       - if: always()
+        working-directory: .
         run: pnpm env:stop
 
   a11y:
@@ -134,16 +146,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: ${{ matrix.theme }}/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: ${{ matrix.theme }}/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ${{ matrix.theme }}/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm env:start
+      - name: Install root tooling (wp-env)
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      - name: Start wp-env
+        working-directory: .
+        run: pnpm env:start
       - run: pnpm test:a11y
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -151,4 +168,5 @@ jobs:
           name: playwright-report-a11y-${{ strategy.job-index }}
           path: ${{ matrix.theme }}/playwright-report/
       - if: always()
+        working-directory: .
         run: pnpm env:stop

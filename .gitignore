@@ -1,8 +1,7 @@
 # Dependencies
 ## Avoid any node_modules folders anywhere in the repo;
 node_modules
-## Avoid package*.json files only at repo root
-/package.json
+## The root package.json is tracked (wp-env, shared tooling); this project uses pnpm
 /package-lock.json
 
 # Uploads directory

@@ -7,5 +7,8 @@
 		"wp-content/themes": "./themes",
 		"wp-content/plugins": "./plugins",
 		"wp-content/mu-plugins": "./mu-plugins"
+	},
+	"lifecycleScripts": {
+		"afterStart": "t=\"${WP_THEME:-$(ls themes | head -n 1)}\"; [ -z \"$t\" ] || wp-env run cli wp theme activate \"$t\""
 	}
 }

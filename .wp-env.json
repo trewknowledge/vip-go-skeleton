@@ -1,0 +1,11 @@
+{
+	"phpVersion": "8.4",
+	"config": {
+		"WP_DEBUG": true
+	},
+	"mappings": {
+		"wp-content/themes": "./themes",
+		"wp-content/plugins": "./plugins",
+		"wp-content/mu-plugins": "./mu-plugins"
+	}
+}

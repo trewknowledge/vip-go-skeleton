@@ -29,3 +29,6 @@ phpcs.xml
 
 # Composer (repo root only)
 /vendor/
+
+# wp-env local overrides
+.wp-env.override.json

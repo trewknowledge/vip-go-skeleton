@@ -21,6 +21,9 @@
 		https://github.com/squizlabs/PHP_CodeSniffer/wiki/Advanced-Usage#ignoring-files-and-folders -->
 	<exclude-pattern>./node_modules/</exclude-pattern>
 	<exclude-pattern>./vendor/</exclude-pattern>
+	<!-- Compiled theme/plugin assets and the bundled core theme are not ours to lint. -->
+	<exclude-pattern>*/build/*</exclude-pattern>
+	<exclude-pattern>*/themes/twentytwentyfour/*</exclude-pattern>
 
 	<!-- How to scan -->
 	<arg value="sp"/> <!-- Show sniff and progress -->

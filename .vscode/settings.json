@@ -1,0 +1,10 @@
+{
+	"phpcs.standard": "WordPress-VIP-Go",
+	"prettier.useTabs": true,
+	"editor.tabCompletion": "on",
+	"editor.autoIndent": "full",
+	"editor.insertSpaces": false,
+	"editor.tabSize": 2,
+	"editor.detectIndentation": false,
+	"editor.defaultFormatter": "esbenp.prettier-vscode"
+}

@@ -23,6 +23,8 @@
 	<exclude-pattern>./vendor/</exclude-pattern>
 	<!-- Compiled theme/plugin assets are not ours to lint. -->
 	<exclude-pattern>*/build/*</exclude-pattern>
+	<!-- Test bootstraps run outside WordPress, so the VIP production rules do not apply. -->
+	<exclude-pattern>*/tests/*</exclude-pattern>
 
 	<!-- How to scan -->
 	<arg value="sp"/> <!-- Show sniff and progress -->

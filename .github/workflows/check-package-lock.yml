@@ -1,0 +1,30 @@
+name: Check for package-lock.json
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-lock-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: No package-lock.json allowed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      # Checks tracked files only, so it needs no node_modules exclusion.
+      - name: Fail if package-lock.json is tracked
+        run: |
+          files=$(git ls-files -- '*package-lock.json')
+          if [ -n "$files" ]; then
+            echo "::error::Found package-lock.json files (use pnpm instead):"
+            echo "$files"
+            exit 1
+          fi
+          echo "No package-lock.json files found."

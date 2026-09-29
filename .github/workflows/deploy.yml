@@ -1,0 +1,267 @@
+name: Deployment
+
+on:
+  push:
+    branches:
+      - "production"
+      - "staging"
+      - "develop"
+  workflow_dispatch:
+
+# Deployments to the same branch are queued, not cancelled: killing an rsync
+# --delete halfway can leave the server half-synced. Only the newest pending
+# run waits in the queue.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # PHPCS plus every theme's JS unit, PHPUnit, E2E and accessibility suites.
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
+  # Every theme under themes/ with a package.json gets built and deployed, so
+  # adding a theme needs no edit here.
+  discover:
+    name: Find themes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      themes: ${{ steps.find.outputs.themes }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: find
+        run: |
+          themes=$(find themes -mindepth 2 -maxdepth 2 -name package.json -printf '%h\n' | sort | jq -R . | jq -sc .)
+          echo "themes=$themes" >> "$GITHUB_OUTPUT"
+
+  build_themes:
+    name: Build ${{ matrix.theme }}
+    needs: discover
+    if: needs.discover.outputs.themes != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: true
+      matrix:
+        theme: ${{ fromJSON(needs.discover.outputs.themes) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.theme }}
+
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.theme }}/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build theme
+        run: pnpm build
+
+      - name: Test the build
+        run: |
+          for file in build/js/main.js build/css/main.css; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Build failed: missing $file"
+              exit 1
+            fi
+            echo "Found: $file"
+          done
+
+      - name: Write artifact path manifest
+        run: echo "$THEME" > artifact-path.txt
+        env:
+          THEME: ${{ matrix.theme }}
+
+      - name: Get artifact name
+        id: artifact
+        run: echo "name=built-${THEME//\//-}" >> "$GITHUB_OUTPUT"
+        env:
+          THEME: ${{ matrix.theme }}
+
+      # Ships the theme minus everything only needed to build or test it.
+      - name: Upload built theme
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: |
+            ${{ matrix.theme }}/
+            !${{ matrix.theme }}/**/node_modules/**
+            !${{ matrix.theme }}/vendor/**
+            !${{ matrix.theme }}/src/**
+            !${{ matrix.theme }}/tests/**
+            !${{ matrix.theme }}/playwright-report/**
+            !${{ matrix.theme }}/test-results/**
+            !${{ matrix.theme }}/*.config.js
+            !${{ matrix.theme }}/*.config.mjs
+            !${{ matrix.theme }}/.gitignore
+            !${{ matrix.theme }}/.stylelintrc.json
+            !${{ matrix.theme }}/composer.json
+            !${{ matrix.theme }}/composer.lock
+            !${{ matrix.theme }}/package.json
+            !${{ matrix.theme }}/pnpm-lock.yaml
+            !${{ matrix.theme }}/pnpm-workspace.yaml
+            !${{ matrix.theme }}/phpunit.xml.dist
+            !${{ matrix.theme }}/tsconfig.json
+          retention-days: 1
+          if-no-files-found: error
+
+  # Plugins are declared in the root composer.json (WordPress Packagist).
+  build_plugins:
+    name: Build plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      # Paths are relative to the repo root, so deploy can extract this over its
+      # checkout. Add any other directory your composer.json installer-paths write to.
+      - name: Upload Composer dependencies
+        uses: actions/upload-artifact@v6
+        with:
+          name: deps-composer
+          path: |
+            vendor/
+            plugins/
+            mu-plugins/
+          retention-days: 1
+          if-no-files-found: error
+
+  # Deployment only: everything it ships was built and tested above.
+  deploy:
+    name: Deploy to Server
+    needs: [tests, discover, build_themes, build_plugins]
+    # build_themes is skipped when there are no themes to build; that is not a failure.
+    if: ${{ !cancelled() && needs.tests.result == 'success' && needs.discover.result == 'success' && needs.build_plugins.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.build_themes.result) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # --checksum compares content, not mtime, so the fresh timestamps from a
+      # new checkout/artifact don't cause every file to be re-transferred.
+      RSYNC_ARGS: "-az --checksum --delete --exclude='/uploads/' --exclude='/.git' --exclude='/.github' --exclude='/mu-plugins/wpe-*' --exclude='/mu-plugins/wpengine-*' --exclude='/mu-plugins/force-strong-passwords/' --exclude='/mu-plugins/mu-plugin.php' --exclude='/mu-plugins/slt-force-strong-passwords.php'"
+
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v6
+
+      - name: Download Composer dependencies
+        uses: actions/download-artifact@v7
+        with:
+          name: deps-composer
+          path: .
+
+      - name: Download built themes
+        if: needs.build_themes.result == 'success'
+        uses: actions/download-artifact@v7
+        with:
+          pattern: built-*
+          path: artifacts/
+
+      # Each artifact lands in artifacts/<name>/ and carries its own
+      # artifact-path.txt, so the destination never has to be parsed from the name.
+      - name: Restore theme directory structure
+        if: needs.build_themes.result == 'success'
+        run: |
+          shopt -s nullglob
+          for artifact_dir in artifacts/built-*/; do
+            artifact_dir="${artifact_dir%/}"
+            theme_path=$(cat "$artifact_dir/artifact-path.txt")
+            case "$theme_path" in
+              themes/*) ;;
+              *) echo "::error::Unexpected theme path: $theme_path"; exit 1 ;;
+            esac
+            echo "Restoring $theme_path from $artifact_dir"
+            rm -f "$artifact_dir/artifact-path.txt"
+            rm -rf "$theme_path"
+            mkdir -p "$(dirname "$theme_path")"
+            mv "$artifact_dir" "$theme_path"
+          done
+          rm -rf artifacts/
+
+      - name: Clean up repository
+        run: |
+          rm -rf .github .git .vscode .editorconfig .phpcs.xml.dist .wp-env.json
+          rm -f package.json pnpm-lock.yaml pnpm-workspace.yaml
+
+      - name: Deploy code to Production
+        if: github.ref == 'refs/heads/production'
+        uses: trewknowledge/rsync-deploy@377477c55f6c22d0893595022a9f4ab44569b6ce # master, 2025-09-24 (repo has no tags)
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          ARGS: ${{ env.RSYNC_ARGS }}
+          FOLDER: ""
+          SERVER_PORT: 22
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          USERNAME: ${{ secrets.USERNAME }}
+          SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION }}
+
+      - name: Deploy code to Staging
+        if: github.ref == 'refs/heads/staging'
+        uses: trewknowledge/rsync-deploy@377477c55f6c22d0893595022a9f4ab44569b6ce # master, 2025-09-24 (repo has no tags)
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          ARGS: ${{ env.RSYNC_ARGS }}
+          FOLDER: ""
+          SERVER_PORT: 22
+          SERVER_IP: ${{ secrets.SERVER_IP_STAGING }}
+          USERNAME: ${{ secrets.USERNAME_STAGING }}
+          SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION_STAGING }}
+
+      - name: Deploy code to Develop
+        if: github.ref == 'refs/heads/develop'
+        uses: trewknowledge/rsync-deploy@377477c55f6c22d0893595022a9f4ab44569b6ce # master, 2025-09-24 (repo has no tags)
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          ARGS: ${{ env.RSYNC_ARGS }}
+          FOLDER: ""
+          SERVER_PORT: 22
+          SERVER_IP: ${{ secrets.SERVER_IP_DEVELOP }}
+          USERNAME: ${{ secrets.USERNAME_DEVELOP }}
+          SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION_DEVELOP }}
+
+  # Separate job so a failure in any earlier job (tests, builds) is reported too,
+  # not only a failed rsync. Slack problems never fail the run (action default).
+  notify:
+    name: Notify Slack
+    needs: [tests, discover, build_themes, build_plugins, deploy]
+    if: ${{ !cancelled() && contains(fromJSON('["production","staging","develop"]'), github.ref_name) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post deployment result
+        uses: slackapi/slack-github-action@v4.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "${{ contains(needs.*.result, 'failure') && ':x: <!here> Deployment failed' || ':white_check_mark: Deployed' }}: ${{ github.repository }} (${{ github.ref_name }})"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "${{ contains(needs.*.result, 'failure') && ':x: <!here> *Deployment failed*' || ':white_check_mark: *Deployed*' }} `${{ github.repository }}` → `${{ github.ref_name }}`\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}> by ${{ github.actor }} · <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"

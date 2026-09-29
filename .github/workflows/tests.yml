@@ -1,13 +1,16 @@
 name: Tests
 
+# Pushes to production/staging/develop are tested by deploy.yml, which calls
+# this workflow, so there is no push trigger here (it would run everything twice).
 on:
-  push:
-    branches: [production]
   pull_request:
+  workflow_call:
+  workflow_dispatch:
 
+# Only superseded PR runs are cancelled; a run called from deploy.yml must finish.
 concurrency:
   group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   phpcs:
@@ -35,7 +38,13 @@ jobs:
           themes=$(find themes -mindepth 2 -maxdepth 2 -name package.json -printf '%h\n' | sort | jq -R . | jq -sc .)
           echo "themes=$themes" >> "$GITHUB_OUTPUT"
 
-  js-unit:
+  # One job per theme x suite. The suites share the same setup and differ only
+  # in the script they run and which extra steps they need:
+  #   composer   - install the theme's Composer dev dependencies (PHPUnit)
+  #   playwright - install the Chromium browser
+  #   wpenv      - start wp-env (Docker) from the repo root
+  theme-tests:
+    name: ${{ matrix.suite.name }} (${{ matrix.theme }})
     needs: discover
     if: needs.discover.outputs.themes != '[]'
     runs-on: ubuntu-latest
@@ -43,6 +52,11 @@ jobs:
       fail-fast: false
       matrix:
         theme: ${{ fromJSON(needs.discover.outputs.themes) }}
+        suite:
+          - { name: js-unit, script: 'test:js' }
+          - { name: php-unit, script: 'test:php', composer: true, wpenv: true }
+          - { name: e2e, script: 'test:e2e', playwright: true, wpenv: true }
+          - { name: a11y, script: 'test:a11y', playwright: true, wpenv: true }
     defaults:
       run:
         working-directory: ${{ matrix.theme }}
@@ -57,116 +71,27 @@ jobs:
             pnpm-lock.yaml
             ${{ matrix.theme }}/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:js
 
-  php-unit:
-    needs: discover
-    if: needs.discover.outputs.themes != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        theme: ${{ fromJSON(needs.discover.outputs.themes) }}
-    defaults:
-      run:
-        working-directory: ${{ matrix.theme }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            ${{ matrix.theme }}/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: composer install --no-interaction --prefer-dist
-      - name: Install root tooling (wp-env)
-        working-directory: .
-        run: pnpm install --frozen-lockfile
-      - name: Start wp-env
-        working-directory: .
-        run: pnpm env:start
-      - run: pnpm test:php
-      - if: always()
-        working-directory: .
-        run: pnpm env:stop
+      - if: matrix.suite.composer
+        run: composer install --no-interaction --prefer-dist
 
-  e2e:
-    needs: discover
-    if: needs.discover.outputs.themes != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        theme: ${{ fromJSON(needs.discover.outputs.themes) }}
-    defaults:
-      run:
-        working-directory: ${{ matrix.theme }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            ${{ matrix.theme }}/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - name: Install root tooling (wp-env)
-        working-directory: .
-        run: pnpm install --frozen-lockfile
+      - if: matrix.suite.playwright
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Start wp-env
+        if: matrix.suite.wpenv
         working-directory: .
-        run: pnpm env:start
-      - run: pnpm test:e2e
-      - if: failure()
+        run: pnpm install --frozen-lockfile && pnpm env:start
+
+      - run: pnpm ${{ matrix.suite.script }}
+
+      - if: failure() && matrix.suite.playwright
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-e2e-${{ strategy.job-index }}
+          name: playwright-report-${{ matrix.suite.name }}-${{ strategy.job-index }}
           path: ${{ matrix.theme }}/playwright-report/
-      - if: always()
-        working-directory: .
-        run: pnpm env:stop
 
-  a11y:
-    needs: discover
-    if: needs.discover.outputs.themes != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        theme: ${{ fromJSON(needs.discover.outputs.themes) }}
-    defaults:
-      run:
-        working-directory: ${{ matrix.theme }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            ${{ matrix.theme }}/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - name: Install root tooling (wp-env)
-        working-directory: .
-        run: pnpm install --frozen-lockfile
-      - name: Start wp-env
-        working-directory: .
-        run: pnpm env:start
-      - run: pnpm test:a11y
-      - if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-a11y-${{ strategy.job-index }}
-          path: ${{ matrix.theme }}/playwright-report/
-      - if: always()
+      - name: Stop wp-env
+        if: always() && matrix.suite.wpenv
         working-directory: .
         run: pnpm env:stop

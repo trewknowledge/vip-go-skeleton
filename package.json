@@ -2,7 +2,7 @@
 	"name": "wp-content",
 	"private": true,
 	"description": "Shared development tooling for the whole wp-content repository.",
-	"packageManager": "pnpm@11.1.2",
+	"packageManager": "pnpm@12.6.0",
 	"engines": {
 		"node": ">=24"
 	},

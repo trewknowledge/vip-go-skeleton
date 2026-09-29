@@ -42,6 +42,8 @@
 	https://docs.wpvip.com/vip-code-analysis-bot/customize-the-bot/#h-phpcs-severity
 	-->
 	<arg name="severity" value="1"/>
+	<!-- Report warnings but only fail on errors (exit code), for CI and local runs. -->
+	<config name="ignore_warnings_on_exit" value="1"/>
 
 	<!-- Rules: Check PHP version compatibility - see
 		https://github.com/PHPCompatibility/PHPCompatibilityWP -->

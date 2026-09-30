@@ -1,22 +1,8 @@
 # Dependencies
-## Avoid any node_modules folders anywhere in the repo; see see https://docs.wpvip.com/how-tos/manage-dependencies/#version-management
+## Avoid any node_modules folders anywhere in the repo;
 node_modules
-## Avoid package*.json files only at repo root
-/package.json
+## The root package.json is tracked (wp-env, shared tooling); this project uses pnpm
 /package-lock.json
-
-# Built-in; ship with vip-go-mu-plugins
-/plugins/akismet/
-/plugins/advanced-post-cache/
-/plugins/cron-control/
-/plugins/gutenberg-ramp/
-/plugins/jetpack/
-/plugins/jetpack-force-2fa/
-/plugins/lightweight-term-count-update/
-/plugins/query-monitor/
-/plugins/rewrite-rules-inspector/
-/plugins/two-factor/
-/plugins/vaultpress/
 
 # Uploads directory
 /uploads/
@@ -42,3 +28,6 @@ phpcs.xml
 
 # Composer (repo root only)
 /vendor/
+
+# wp-env local overrides
+.wp-env.override.json

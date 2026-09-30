@@ -23,6 +23,8 @@
 	<exclude-pattern>./vendor/</exclude-pattern>
 	<!-- Compiled theme/plugin assets are not ours to lint. -->
 	<exclude-pattern>*/build/*</exclude-pattern>
+	<!-- Skip Composer-installed plugins; ours are prefixed tk- (match .gitignore). Nested plugins/ dirs in themes and mu-plugins stay linted. -->
+	<exclude-pattern>^(?!.*/(themes|mu-plugins)/).*/plugins/(?!tk-)</exclude-pattern>
 	<!-- Test bootstraps run outside WordPress, so the VIP production rules do not apply. -->
 	<exclude-pattern>*/tests/*</exclude-pattern>
 

@@ -206,7 +206,7 @@ jobs:
       - name: Clean up repository
         run: |
           rm -rf .github .git .vscode .editorconfig .phpcs.xml.dist .wp-env.json
-          rm -f package.json pnpm-lock.yaml pnpm-workspace.yaml
+          rm -f package.json pnpm-lock.yaml pnpm-workspace.yaml CLAUDE.md
 
       - name: Deploy code to Production
         if: github.ref == 'refs/heads/production'

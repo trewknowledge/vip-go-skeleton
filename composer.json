@@ -3,8 +3,19 @@
 	"description": "Used for setting up development dependencies across the whole repository.",
 	"homepage": "https://github.com/automattic/vip-go-skeleton",
 	"license": "GPL-2.0-or-later",
+	"repositories": [
+		{
+			"type": "composer",
+			"url": "https://wpackagist.org",
+			"only": [
+				"wpackagist-plugin/*",
+				"wpackagist-theme/*"
+			]
+		}
+	],
 	"require": {
-		"php": ">=8.2"
+		"php": ">=8.2",
+		"composer/installers": "^2"
 	},
 	"require-dev": {
 		"automattic/vipwpcs": "^3",
@@ -12,7 +23,21 @@
 	},
 	"config": {
 		"allow-plugins": {
-			"dealerdirect/phpcodesniffer-composer-installer": true
+			"dealerdirect/phpcodesniffer-composer-installer": true,
+			"composer/installers": true
+		}
+	},
+	"extra": {
+		"installer-paths": {
+			"plugins/{$name}/": [
+				"type:wordpress-plugin"
+			],
+			"mu-plugins/{$name}/": [
+				"type:wordpress-muplugin"
+			],
+			"themes/{$name}/": [
+				"type:wordpress-theme"
+			]
 		}
 	}
 }

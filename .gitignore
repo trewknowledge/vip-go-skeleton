@@ -29,5 +29,13 @@ phpcs.xml
 # Composer (repo root only)
 /vendor/
 
+# Plugins installed by Composer (WP Packagist). Only what is un-ignored here is tracked:
+# add a "!/plugins/<name>/" line for each custom plugin.
+/plugins/*
+!/plugins/index.php
+!/plugins/.gitkeep
+/mu-plugins/*
+!/mu-plugins/.gitkeep
+
 # wp-env local overrides
 .wp-env.override.json

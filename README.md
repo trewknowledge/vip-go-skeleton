@@ -12,6 +12,8 @@ Development happens in Local; `wp-env` (Docker) is for running the test suites, 
 
 - `pnpm install` at the repo root installs `@wordpress/env`. `pnpm env:start` / `pnpm env:stop` start and stop it, and `pnpm wp <command>` runs WP-CLI in it.
 - `.wp-env.json` mounts `themes/`, `plugins/` and `mu-plugins/`, and activates the first theme in `themes/` after start (set `WP_THEME` to pick another).
+- Plugins come from [WP Packagist](https://wpackagist.org): `composer require wpackagist-plugin/<slug>`. They install into `plugins/` and are gitignored; add a `!/plugins/<name>/` line to `.gitignore` for each custom plugin you write. Run `composer install` before `pnpm env:start` so wp-env loads them.
+- Run `bin/phpcs.sh` (not bare `phpcs`) to lint: it skips the gitignored Composer plugins.
 - `.github/workflows/tests.yml` runs PHPCS on the whole repo and, for every theme in `themes/` that has a `package.json`, its JS unit, PHPUnit, E2E and accessibility suites.
 
 ## Your documentation here

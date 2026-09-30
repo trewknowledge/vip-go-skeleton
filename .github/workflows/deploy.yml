@@ -157,7 +157,7 @@ jobs:
     name: Deploy to Server
     needs: [tests, discover, build_themes, build_plugins]
     # build_themes is skipped when there are no themes to build; that is not a failure.
-    if: ${{ !cancelled() && needs.tests.result == 'success' && needs.discover.result == 'success' && needs.build_plugins.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.build_themes.result) }}
+    if: ${{ github.repository != 'trewknowledge/vip-go-skeleton' && !cancelled() && needs.tests.result == 'success' && needs.discover.result == 'success' && needs.build_plugins.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.build_themes.result) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -249,7 +249,7 @@ jobs:
   notify:
     name: Notify Slack
     needs: [tests, discover, build_themes, build_plugins, deploy]
-    if: ${{ !cancelled() && contains(fromJSON('["production","staging","develop"]'), github.ref_name) }}
+    if: ${{ github.repository != 'trewknowledge/vip-go-skeleton' && !cancelled() && contains(fromJSON('["production","staging","develop"]'), github.ref_name) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -8,8 +8,7 @@
 			"type": "composer",
 			"url": "https://wpackagist.org",
 			"only": [
-				"wpackagist-plugin/*",
-				"wpackagist-theme/*"
+				"wpackagist-plugin/*"
 			]
 		}
 	],
@@ -31,9 +30,6 @@
 		"installer-paths": {
 			"plugins/{$name}/": [
 				"type:wordpress-plugin"
-			],
-			"themes/{$name}/": [
-				"type:wordpress-theme"
 			]
 		}
 	}

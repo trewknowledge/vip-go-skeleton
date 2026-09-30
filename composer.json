@@ -32,9 +32,6 @@
 			"plugins/{$name}/": [
 				"type:wordpress-plugin"
 			],
-			"mu-plugins/{$name}/": [
-				"type:wordpress-muplugin"
-			],
 			"themes/{$name}/": [
 				"type:wordpress-theme"
 			]

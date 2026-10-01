@@ -29,5 +29,9 @@ phpcs.xml
 # Composer (repo root only)
 /vendor/
 
-# wp-env local overrides
-.wp-env.override.json
+# Plugins installed by Composer (WP Packagist) are ignored; ours are tracked by prefix.
+# Change tk- to the prefix your theme and plugins use.
+/plugins/*
+!/plugins/index.php
+!/plugins/.gitkeep
+!/plugins/tk-*/
